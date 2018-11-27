@@ -1,0 +1,106 @@
+#define MAXDELTA 500 // maximale Differenz der Sensoren: Wert(Weiß) - Wert(Schwarz), ca.
+#define MAXSPEED 90 // maximale Geschwindigkeit
+#define MINSPEED 60 // minimale Geschwindigkeit
+#define ACCELERATION 5 // Beschleuningungs-/Bremsintensität
+#define INTERVALL_MS 10 // Update-Intervall in ms
+#define TURNING_SPEED 0.5 // Parameter um die Drehungsgeschwindigkeit zu kontrollieren
+#define SEP_THRESHOLD 200 // Threshold ab wann zwei Werte als unterschiedlich erkannt werden
+#define SMOOTH 0.5 // Parameter zur Regulierung wie schnell Boris auf veränderte Sensorwerte reagiert
+#define NEAR 10 // Parameter zur Regulierung des minimalen Abstands zu einem Hindernis
+
+// Variablen initialisieren.
+int s1 = 0;
+int s2 = 0;
+int s3 = 0;
+int speed = MINSPEED;
+byte file;
+
+// Schaltet die Lichtsensoren an.
+sub lightsOn() {
+    SetSensorType(IN_1,SENSOR_TYPE_LIGHT_ACTIVE);
+    SetSensorMode(IN_1,SENSOR_MODE_RAW);
+    SetSensorType(IN_2,SENSOR_TYPE_LIGHT_ACTIVE);
+    SetSensorMode(IN_2,SENSOR_MODE_RAW);
+    SetSensorType(IN_3,SENSOR_TYPE_LIGHT_ACTIVE);
+    SetSensorMode(IN_3,SENSOR_MODE_RAW);
+    SetSensorLowspeed(IN_4);
+}
+
+// Gibt die geglätteten Sensorwerte sowie die aktuelle Geschwindigkeit auf dem
+// Bildschirm aus und schreibt sie in eine Datei.
+sub printLightSensors() {
+    TextOut(0,30,StrCat("S1: ", NumToStr(s1)));
+    TextOut(0,20,StrCat("S2: ", NumToStr(s2)));
+    TextOut(0,10,StrCat("S3: ", NumToStr(s3)));
+    TextOut(0,0,StrCat("Speed: ", NumToStr(speed)));
+
+    unsigned int count;
+    
+    string str1 = NumToStr(s1);
+    string str2 = NumToStr(s2);
+    string str3 = NumToStr(s3);
+    string str4 = NumToStr(speed);
+
+    /*WriteString(file, str1, count);
+    WriteString(file, ",", count);
+    WriteString(file, str2, count);
+    WriteString(file, ",", count);
+    WriteString(file, str3, count);
+    WriteString(file, ",", count);
+    WriteLnString(file, str4, count);*/
+}
+
+// Checkt ob der vordere Sensor auf der Linie ist und passt dementsprechend die
+// Geschwindigkeit an.
+sub controlSpeed() {
+    int diff1 = s1 - s3;
+    int diff2 = s2 - s3;
+    if (diff1 > SEP_THRESHOLD && diff2 > SEP_THRESHOLD) {
+        speed = speed + ACCELERATION < MAXSPEED ? speed + ACCELERATION : MAXSPEED;
+    } else {
+        speed = speed - ACCELERATION > MINSPEED ? speed - ACCELERATION : MINSPEED;
+    }
+}
+
+// Berechnet die exponentiell geglätteten Sensorenwerte der letzten Messungen
+sub readLightSensors() {
+    s1 = (s1 * SMOOTH + SENSOR_1) / (SMOOTH + 1)
+    s2 = (s2 * SMOOTH + SENSOR_2) / (SMOOTH + 1)
+    s3 = (s3 * SMOOTH + SENSOR_3) / (SMOOTH + 1)
+}
+
+// Passt die Geschwindigkeit der beiden Räder an, je nach Unterschied der
+// geglätteten Sensorwerte (rechts/links).
+sub followLine() {
+    // Differential: normierter Wert zwischen -speed und speed
+    int diff = 2 * speed * (s2 - s1) / MAXDELTA;
+    int motorSpeedLeft = diff > 0 ? speed - diff * (1 + TURNING_SPEED) : speed - diff * TURNING_SPEED;
+    int motorSpeedRight = diff < 0 ? speed + diff * (1 + TURNING_SPEED) : speed + diff * TURNING_SPEED;
+    OnFwd(OUT_A, motorSpeedLeft);
+    OnFwd(OUT_B, motorSpeedRight);
+}
+
+sub reverse() {
+    OnFwd(OUT_A, - MINSPEED);
+    OnFwd(OUT_B, - MINSPEED);
+    Wait(500);
+}
+
+task main() {
+    //DeleteFile("data.txt");
+    //CreateFile("data.txt", 1024, file);
+    lightsOn();
+    while(true) {
+        //readLightSensors();
+        //printLightSensors();
+        //controlSpeed();
+        //if (SensorUS(IN_4) > NEAR) {
+        //    followLine();
+        //} else {
+        //    reverse();
+        //}
+        //Wait(INTERVALL_MS);
+        OnFwd(OUT_A, MAXSPEED);
+        OnFwd(OUT_B, -MAXSPEED);
+    }
+}

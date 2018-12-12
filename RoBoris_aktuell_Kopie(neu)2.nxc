@@ -1,0 +1,174 @@
+struct global {
+    //Motoren
+    int motorSpeedLeft;
+    int motorSpeedRight;
+    
+    //Initialisierung
+    int maxLight;
+    int minLight;
+    int calibrationCount;
+    
+    //Sensoren
+    int max_sensor;
+    unsigned int s1;
+    unsigned int s2;
+    unsigned int s3;
+    
+};
+
+inline int max(int a, int b) {
+    return a > b ? a : b;
+}
+
+inline int min(int a, int b) {
+    return a < b ? a : b;
+}
+int range(int l, int v, int u){
+    return max(l,min(u,v));
+}
+
+sub update_motors(global &g){
+    g.motorSpeedLeft = range(-100,g.motorSpeedLeft,100);
+    g.motorSpeedRight = range(-100,g.motorSpeedRight,100);
+    OnFwd(OUT_A, (-1)*g.motorSpeedLeft);
+    OnFwd(OUT_B, (-1)*g.motorSpeedRight);
+}
+
+int ArrayMinMax(int &s[], int anfang, int ende, int &ret[]){
+    int l = s[anfang];
+    int u = s[anfang];
+    int n = anfang+1;
+    while(n < ende){
+            u = max(u,s[n]);
+            l = min(l,s[n]);
+            n++;
+    }
+    ret[0] = l;
+    ret[1] = u;
+}
+
+sub lightsOn() {
+    SetSensorType(IN_1,SENSOR_TYPE_LIGHT_ACTIVE);
+    SetSensorMode(IN_1,SENSOR_MODE_RAW);
+    SetSensorType(IN_2,SENSOR_TYPE_LIGHT_ACTIVE);
+    SetSensorMode(IN_2,SENSOR_MODE_RAW);
+    SetSensorType(IN_3,SENSOR_TYPE_LIGHT_ACTIVE);
+    SetSensorMode(IN_3,SENSOR_MODE_RAW);
+}
+int centroid(global &g);
+
+sub update_sensors(global &g){
+    int s1_raw = g.max_sensor - SENSOR_1;
+    int s2_raw = g.max_sensor - SENSOR_2;
+    int s3_raw = g.max_sensor - SENSOR_3;
+    g.s1 = s1_raw <= 0 ? 0 : s1_raw;
+    g.s2 = s2_raw <= 0 ? 0 : s2_raw;
+    g.s3 = s3_raw <= 0 ? 0 : s3_raw;
+}
+inline bool in_range (int lower, int value, int upper){
+    return ((value <= upper) && (value >=lower));
+}
+
+sub steer(global &g) {
+    update_sensors(g);
+    int center = centroid(g);
+    int speed_l = g.motorSpeedLeft;
+    int speed_r = g.motorSpeedRight;
+    if(center == 0){
+        //TextOut(0,0,StrCat("keine Linie: ", NumToStr(center)));
+        //speed_l = 50;
+        //speed_r = 50;
+        PlaySound(SOUND_CLICK);
+    }
+
+    /*else if (center == 10){
+        //TextOut(0,0,StrCat("Scharf rechts: ", NumToStr(center)));
+        g.motorSpeedLeft = 100;
+        g.motorSpeedRight = -100;
+    }
+    else if (center == 30){
+        //TextOut(0,0,StrCat("Scharf links: ", NumToStr(center)));
+        g.motorSpeedLeft = -100;
+        g.motorSpeedRight = 100;
+    }*/
+    else {
+        int c_norm = center -20;
+        int auslenkung = (10-abs(c_norm)) * 10;
+        speed_l = -c_norm * 10 + auslenkung;
+        speed_r = c_norm * 10 + auslenkung;
+        g.motorSpeedLeft = (60*g.motorSpeedLeft+40*speed_l)/100;
+        g.motorSpeedRight = (60*g.motorSpeedRight+40*speed_r)/100;
+    }
+
+    update_motors(g);
+}
+
+
+
+
+sub initialize (global &g){
+    //Initialisierung von Motorvariablen
+    g.motorSpeedLeft = 0;
+    g.motorSpeedRight = 0;
+    
+    //Kalibrierungsdaten
+    g.maxLight = 0;
+    g.minLight = 0;
+    g.calibrationCount = 200;
+    
+    //Initialisierrung der Sensordaten
+    g.max_sensor = 580;
+    lightsOn();
+    update_sensors(g);
+    
+    //Bildschirm leeren
+    ClearScreen();
+}
+
+//Berechnet eine annähernde Position der Linie
+//0 => keine Linie
+//10 => ganz links
+//20 => genau in der Mitte
+//30 => ganz rechts
+
+int centroid(global &g) {
+    //Die Sensorwerte werden gewichtet und durch die gesamte Messung geteilt
+    unsigned int masse = g.s1+g.s2+g.s3;
+    unsigned int richtung = 10 * (g.s1+2*g.s2+3*g.s3);
+    unsigned int center = richtung/masse;
+    
+    int center_null = center;
+    
+    return center_null;
+}
+
+int feasible(){
+    return 0;
+
+}
+bool is_feasible() {
+    return true;
+}
+
+sub print_speed(global &g){
+    TextOut(0,0,StrCat("Speed: ", NumToStr(g.motorSpeedLeft),",",NumToStr(g.motorSpeedRight)));
+}
+task main() {
+    //float totalDistance[2];
+    global g;
+    initialize(g);
+    //calibrate(g);
+
+    g.motorSpeedLeft = 0;
+    g.motorSpeedRight = 0;
+    
+    while(true) {
+        //forward();
+        ClearScreen();
+        //print_speed(g);
+        steer(g);
+        /*followLine(g);
+        //updateDistance(totalDistance);  */
+        Wait(10);
+    }
+}
